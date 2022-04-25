@@ -37,13 +37,7 @@ public class MemberServlet extends HttpServlet {
 
             boolean pagination = req.getParameter("page") != null &&
                     req.getParameter("size") != null;
-            String sql = null;
-
-            if (pagination) {
-                sql = "SELECT * FROM member WHERE nic LIKE ? OR name LIKE ? OR contact LIKE ? LIMIT ? OFFSET ?";
-            } else {
-                sql = "SELECT * FROM member WHERE nic LIKE ? OR name LIKE ? OR contact LIKE ?";
-            }
+            String sql = "SELECT * FROM member WHERE nic LIKE ? OR name LIKE ? OR contact LIKE ? " + ((pagination) ? "LIMIT ? OFFSET ?": "");
 
             PreparedStatement stm = connection.prepareStatement(sql);
             PreparedStatement stmCount = connection.prepareStatement("SELECT count(*) FROM member WHERE nic LIKE ? OR name LIKE ? OR contact LIKE ?");
@@ -74,14 +68,9 @@ public class MemberServlet extends HttpServlet {
             }
 
             resp.setContentType("application/json");
-
-            if (!pagination) {
-                resp.setHeader("X-Count", members.size() + "");
-            }else{
-                ResultSet rst2 = stmCount.executeQuery();
-                if (rst2.next()){
-                    resp.setHeader("X-Count", rst2.getString(1));
-                }
+            ResultSet rst2 = stmCount.executeQuery();
+            if (rst2.next()){
+                resp.setHeader("X-Count", rst2.getString(1));
             }
 
             Jsonb jsonb = JsonbBuilder.create();
