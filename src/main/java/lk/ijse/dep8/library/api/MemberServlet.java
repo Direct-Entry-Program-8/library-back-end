@@ -26,8 +26,7 @@ public class MemberServlet extends HttpServlet {
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        if (req.getServletPath().equalsIgnoreCase("/members") ||
-                req.getServletPath().equalsIgnoreCase("/members/")){
+        if (req.getPathInfo() == null || req.getPathInfo().equals("/")){
             resp.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, "Unable to delete all members yet");
             return;
         }else if (req.getPathInfo() != null &&
