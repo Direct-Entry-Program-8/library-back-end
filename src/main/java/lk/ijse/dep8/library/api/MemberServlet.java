@@ -24,6 +24,43 @@ public class MemberServlet extends HttpServlet {
     @Resource(name = "java:comp/env/jdbc/pool4library")
     private volatile DataSource pool;
 
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        if (req.getServletPath().equalsIgnoreCase("/members") ||
+                req.getServletPath().equalsIgnoreCase("/members/")){
+            resp.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, "Unable to delete all members yet");
+            return;
+        }else if (req.getPathInfo() != null &&
+                !req.getPathInfo().substring(1).matches("\\d{9}[Vv][/]?")){
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Member not found");
+            return;
+        }
+
+        String nic = req.getPathInfo().replaceAll("[/]", "");
+
+        try (Connection connection = pool.getConnection()) {
+            PreparedStatement stm = connection.
+                    prepareStatement("SELECT * FROM member WHERE nic=?");
+            stm.setString(1, nic);
+            ResultSet rst = stm.executeQuery();
+
+            if (rst.next()){
+                stm = connection.prepareStatement("DELETE FROM member WHERE nic=?");
+                stm.setString(1, nic);
+                if (stm.executeUpdate() != 1){
+                    throw new RuntimeException("Failed to delete the member");
+                }
+                resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            }else{
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Member not found");
+            }
+        } catch (SQLException|RuntimeException e) {
+            e.printStackTrace();
+            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+
+    }
+
     private void doSaveOrUpdate(HttpServletRequest req, HttpServletResponse res) throws IOException {
         if (req.getContentType() == null ||
                 !req.getContentType().toLowerCase().startsWith("application/json")) {
