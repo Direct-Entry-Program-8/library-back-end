@@ -16,6 +16,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @WebServlet(name = "MemberServlet", value = {"/members/*"})
@@ -23,6 +25,45 @@ public class MemberServlet extends HttpServlet {
 
     @Resource(name = "java:comp/env/jdbc/pool4library")
     private volatile DataSource pool;
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        if (req.getPathInfo() != null && !req.getPathInfo().equals("/")){
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+
+        String query = req.getParameter("q");
+        query = "%"  + ((query == null) ? "": query) + "%";
+
+        try (Connection connection = pool.getConnection()) {
+            PreparedStatement stm = connection.
+                    prepareStatement("SELECT * FROM member WHERE nic LIKE ? OR name LIKE ? OR contact LIKE ?");
+            stm.setString(1, query);
+            stm.setString(2, query);
+            stm.setString(3, query);
+            ResultSet rst = stm.executeQuery();
+
+            List<MemberDTO> members = new ArrayList<>();
+
+            while (rst.next()){
+                members.add((new MemberDTO(
+                        rst.getString("nic"),
+                        rst.getString("name"),
+                        rst.getString("contact")
+                )));
+            }
+
+            resp.setContentType("application/json");
+            resp.setHeader("X-Count", members.size() + "");
+
+            Jsonb jsonb = JsonbBuilder.create();
+            jsonb.toJson(members, resp.getWriter());
+
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+    }
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -60,6 +101,16 @@ public class MemberServlet extends HttpServlet {
 
     }
 
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        doSaveOrUpdate(request,response);
+    }
+
+    @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+       doSaveOrUpdate(req,resp);
+    }
+
     private void doSaveOrUpdate(HttpServletRequest req, HttpServletResponse res) throws IOException {
         if (req.getContentType() == null ||
                 !req.getContentType().toLowerCase().startsWith("application/json")) {
@@ -72,7 +123,7 @@ public class MemberServlet extends HttpServlet {
 
         if (method.equals("POST") &&
                 !((req.getServletPath().equalsIgnoreCase("/members") ||
-                req.getServletPath().equalsIgnoreCase("/members/")))){
+                        req.getServletPath().equalsIgnoreCase("/members/")))){
             res.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }else if (method.equals("PUT") && !(pathInfo != null &&
@@ -134,15 +185,5 @@ public class MemberServlet extends HttpServlet {
             t.printStackTrace();
             res.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
-    }
-
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        doSaveOrUpdate(request,response);
-    }
-
-    @Override
-    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-       doSaveOrUpdate(req,resp);
     }
 }
