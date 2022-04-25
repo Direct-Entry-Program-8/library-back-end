@@ -24,6 +24,42 @@ public class MemberServlet extends HttpServlet {
     @Resource(name = "java:comp/env/jdbc/pool4library")
     private volatile DataSource pool;
 
+    private void doSaveOrUpdate(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        if (req.getContentType() == null ||
+                !req.getContentType().toLowerCase().startsWith("application/json")) {
+            res.sendError(HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE);
+            return;
+        }
+
+        String method = req.getMethod();
+        String pathInfo = req.getPathInfo();
+
+        if (method.equals("POST") && !(pathInfo == null || pathInfo.equals("/"))){
+            res.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }else if (method.equals("PUT") && !(pathInfo != null &&
+                pathInfo.substring(1).matches("\\d{9}[Vv][/]?"))){
+            res.sendError(HttpServletResponse.SC_NOT_FOUND, "Member does not exist");
+            return;
+        }
+
+        try {
+            Jsonb jsonb = JsonbBuilder.create();
+            MemberDTO member = jsonb.fromJson(req.getReader(), MemberDTO.class);
+            if (method.equals("POST") &&
+                    member.getNic() == null || !member.getNic().matches("\\d{9}[Vv]")) {
+                throw new ValidationException("Invalid NIC");
+            } else if (member.getName() == null || !member.getName().matches("[A-Za-z ]+")) {
+                throw new ValidationException("Invalid Name");
+            } else if (member.getContact() == null || !member.getContact().matches("\\d{3}-\\d{7}")) {
+                throw new ValidationException("Invalid contact number");
+            }
+        } catch (JsonbException | ValidationException e) {
+            res.sendError(HttpServletResponse.SC_BAD_REQUEST,
+                    (e instanceof JsonbException) ? "Invalid JSON" : e.getMessage());
+        }
+    }
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         if (request.getContentType() == null ||
@@ -83,12 +119,12 @@ public class MemberServlet extends HttpServlet {
             return;
         }
 
-        try{
-            Jsonb jsonb = JsonbBuilder.create();
-            MemberDTO member = jsonb.fromJson(req.getReader(), MemberDTO.class);
-        }catch (JsonbException e){
-            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JSON");
-        }
+//        try{
+//            Jsonb jsonb = JsonbBuilder.create();
+//            MemberDTO member = jsonb.fromJson(req.getReader(), MemberDTO.class);
+//        }catch (JsonbException e){
+//            resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid JSON");
+//        }
 
         try (Connection connection = pool.getConnection()) {
             PreparedStatement stm = connection.prepareStatement("SELECT * FROM member WHERE nic=?");
