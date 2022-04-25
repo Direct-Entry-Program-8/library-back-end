@@ -76,8 +76,9 @@ public class MemberServlet extends HttpServlet {
             Jsonb jsonb = JsonbBuilder.create();
             jsonb.toJson(members, resp.getWriter());
 
-        } catch (SQLException throwables) {
-            throwables.printStackTrace();
+        } catch (SQLException t) {
+            t.printStackTrace();
+            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
 
