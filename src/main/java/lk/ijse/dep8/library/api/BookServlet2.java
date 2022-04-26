@@ -20,6 +20,7 @@ import java.nio.channels.Channels;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 
 @MultipartConfig(location = "/tmp", maxFileSize = 15 * 1024 * 1024)
 @WebServlet(name = "BookServlet2", value = "/v2/books/*")
@@ -129,6 +130,41 @@ public class BookServlet2 extends HttpServlet {
         } catch (Throwable t) {
             t.printStackTrace();
             res.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Override
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        if (req.getPathInfo() == null || req.getPathInfo().equals("/")) {
+            resp.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, "Unable to delete all books yet");
+            return;
+        } else if (req.getPathInfo() != null &&
+                !req.getPathInfo().substring(1).matches("\\d+[/]?")) {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Book does not exist");
+            return;
+        }
+
+        String isbn = req.getPathInfo().replaceAll("[/]", "");
+
+        try (Connection connection = pool.getConnection()) {
+            PreparedStatement stm = connection.
+                    prepareStatement("SELECT * FROM book WHERE isbn=?");
+            stm.setString(1, isbn);
+            ResultSet rst = stm.executeQuery();
+
+            if (rst.next()) {
+                stm = connection.prepareStatement("DELETE FROM book WHERE isbn=?");
+                stm.setString(1, isbn);
+                if (stm.executeUpdate() != 1) {
+                    throw new RuntimeException("Failed to delete the book");
+                }
+                resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            } else {
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Book does not exist");
+            }
+        } catch (SQLException | RuntimeException e) {
+            e.printStackTrace();
+            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
 }
