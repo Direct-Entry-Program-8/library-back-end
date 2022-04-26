@@ -9,8 +9,7 @@ CREATE TABLE book
 (
     isbn    VARCHAR(25) PRIMARY KEY,
     name    VARCHAR(100) NOT NULL,
-    author  VARCHAR(100) NOT NULL,
-    preview LONGBLOB
+    author  VARCHAR(100) NOT NULL
 );
 
 CREATE TABLE issue
@@ -22,3 +21,5 @@ CREATE TABLE issue
     CONSTRAINT fk_member FOREIGN KEY (nic) REFERENCES member (nic),
     CONSTRAINT fK_book FOREIGN KEY (isbn) REFERENCES book (isbn)
 );
+
+ALTER TABLE book ADD COLUMN preview LONGBLOB;
