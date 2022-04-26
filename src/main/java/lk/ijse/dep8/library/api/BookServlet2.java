@@ -3,9 +3,12 @@ package lk.ijse.dep8.library.api;
 import lk.ijse.dep8.library.dto.BookDTO;
 import lk.ijse.dep8.library.exception.ValidationException;
 
+import javax.annotation.Resource;
 import javax.servlet.*;
 import javax.servlet.http.*;
 import javax.servlet.annotation.*;
+import javax.sql.DataSource;
+import javax.sql.rowset.serial.SerialBlob;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -14,10 +17,16 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.ByteChannel;
 import java.nio.channels.Channels;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
 @MultipartConfig(location = "/tmp", maxFileSize = 15 * 1024 * 1024)
 @WebServlet(name = "BookServlet2", value = "/v2/books/*")
 public class BookServlet2 extends HttpServlet {
+
+    @Resource(name = "java:comp/env/jdbc/pool4library")
+    private volatile DataSource pool;
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
@@ -76,6 +85,44 @@ public class BookServlet2 extends HttpServlet {
                 throw new ValidationException("Invalid Book Name");
             } else if (book.getAuthor() == null || !book.getAuthor().matches("[A-Za-z0-9 ]+")) {
                 throw new ValidationException("Invalid Author Name");
+            }
+
+            if (method.equals("PUT")) {
+                book.setIsbn(pathInfo.replaceAll("[/]", ""));
+            }
+
+            try (Connection connection = pool.getConnection()) {
+                PreparedStatement stm = connection.
+                        prepareStatement("SELECT * FROM book WHERE isbn=?");
+                stm.setString(1, book.getIsbn());
+                ResultSet rst = stm.executeQuery();
+
+                if (rst.next()) {
+                    if (method.equals("POST")) {
+                        res.sendError(HttpServletResponse.SC_CONFLICT, "Book already exists");
+                    } else {
+                        stm = connection.
+                                prepareStatement("UPDATE book SET name=?, author=?, preview=? WHERE isbn=?");
+                        stm.setString(1, book.getName());
+                        stm.setString(2, book.getAuthor());
+                        stm.setBlob(3, book.getPreview() != null ? new SerialBlob(book.getPreview()) : null);
+                        stm.setString(4, book.getIsbn());
+                        if (stm.executeUpdate() != 1) {
+                            throw new RuntimeException("Failed to update the book details");
+                        }
+                        res.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                    }
+                } else {
+                    stm = connection.prepareStatement("INSERT INTO book (isbn, name, author, preview) VALUES (?,?,?,?)");
+                    stm.setString(1, book.getIsbn());
+                    stm.setString(2, book.getName());
+                    stm.setString(3, book.getAuthor());
+                    stm.setBlob(4, book.getPreview() == null ? null : new SerialBlob(book.getPreview()));
+                    if (stm.executeUpdate() != 1) {
+                        throw new RuntimeException("Failed to add a book");
+                    }
+                    res.setStatus(HttpServletResponse.SC_CREATED);
+                }
             }
         } catch (ValidationException e) {
             res.sendError(HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
