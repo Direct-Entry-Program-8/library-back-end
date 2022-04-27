@@ -3,23 +3,19 @@ package lk.ijse.dep8.library.api;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 import lk.ijse.dep8.library.dto.BookDTO;
-import lk.ijse.dep8.library.dto.MemberDTO;
 import lk.ijse.dep8.library.exception.ValidationException;
 
 import javax.annotation.Resource;
-import javax.servlet.*;
-import javax.servlet.http.*;
-import javax.servlet.annotation.*;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.MultipartConfig;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.Part;
 import javax.sql.DataSource;
 import javax.sql.rowset.serial.SerialBlob;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
-import java.nio.channels.ByteChannel;
-import java.nio.channels.Channels;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -175,9 +171,14 @@ public class BookServlet2 extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        if (req.getPathInfo() != null && !req.getPathInfo().equals("/")) {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
-            return;
+        if (req.getPathInfo() != null) {
+            if (req.getPathInfo().substring(1).matches("\\d+[/]?")){
+                searchBook(req, resp);
+                return;
+            }else if(!req.getPathInfo().equals("/")){
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+                return;
+            }
         }
 
         String query = req.getParameter("q");
@@ -187,7 +188,7 @@ public class BookServlet2 extends HttpServlet {
 
             boolean pagination = req.getParameter("page") != null &&
                     req.getParameter("size") != null;
-            String sql = "SELECT * FROM book WHERE isbn LIKE ? OR name LIKE ? OR author LIKE ? " + ((pagination) ? "LIMIT ? OFFSET ?": "");
+            String sql = "SELECT b.*, i.id FROM book b LEFT OUTER JOIN issue i on b.isbn = i.isbn WHERE b.isbn LIKE ? OR b.name LIKE ? OR b.author LIKE ? " + ((pagination) ? "LIMIT ? OFFSET ?" : "");
 
             PreparedStatement stm = connection.prepareStatement(sql);
             PreparedStatement stmCount = connection.prepareStatement("SELECT * FROM book WHERE isbn LIKE ? OR name LIKE ? OR author LIKE ?");
@@ -199,7 +200,7 @@ public class BookServlet2 extends HttpServlet {
             stmCount.setString(2, query);
             stmCount.setString(3, query);
 
-            if (pagination){
+            if (pagination) {
                 int page = Integer.parseInt(req.getParameter("page"));
                 int size = Integer.parseInt(req.getParameter("size"));
                 stm.setInt(4, size);
@@ -214,12 +215,13 @@ public class BookServlet2 extends HttpServlet {
                         rst.getString("isbn"),
                         rst.getString("name"),
                         rst.getString("author"),
-                        rst.getBytes("preview")
+                        rst.getBytes("preview"),
+                        rst.getString("id") == null
                 )));
             }
 
             ResultSet rst2 = stmCount.executeQuery();
-            if (rst2.next()){
+            if (rst2.next()) {
                 resp.setHeader("X-Count", rst2.getString(1));
             }
 
@@ -230,6 +232,30 @@ public class BookServlet2 extends HttpServlet {
         } catch (SQLException t) {
             t.printStackTrace();
             resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private void searchBook(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException{
+        try (Connection connection = pool.getConnection()) {
+            PreparedStatement stm = connection.prepareStatement("SELECT b.*, i.id FROM book b LEFT OUTER JOIN issue i on b.isbn = i.isbn WHERE b.isbn = ?");
+            stm.setString(1, req.getPathInfo().replaceAll("[/]", ""));
+            ResultSet rst = stm.executeQuery();
+            if (!rst.next()){
+                res.sendError(HttpServletResponse.SC_NOT_FOUND, "Book not found");
+                return;
+            }
+
+            BookDTO book = new BookDTO(rst.getString("isbn"),
+                    rst.getString("name"),
+                    rst.getString("author"),
+                    rst.getBytes("preview"),
+                    rst.getString("id") == null);
+
+            res.setContentType("application/json");
+            Jsonb jsonb = JsonbBuilder.create();
+            jsonb.toJson(book, res.getWriter());
+        }catch (SQLException | RuntimeException e){
+            res.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
 }
