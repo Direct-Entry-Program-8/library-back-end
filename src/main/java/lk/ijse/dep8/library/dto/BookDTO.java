@@ -60,7 +60,8 @@ public class BookDTO implements Serializable {
 
     @JsonbProperty(value = "preview", nillable = true)
     public String getPreviewAsDataURI(){
-        return (preview == null)? null: "data:image/*;base64" + Base64.getEncoder().encodeToString(preview);
+        return (preview == null)? null: "data:image/*;base64," +
+                Base64.getEncoder().encodeToString(preview);
     }
 
     public void setPreview(byte[] preview) {
