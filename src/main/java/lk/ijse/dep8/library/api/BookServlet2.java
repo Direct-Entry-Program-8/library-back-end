@@ -154,6 +154,15 @@ public class BookServlet2 extends HttpServlet {
             ResultSet rst = stm.executeQuery();
 
             if (rst.next()) {
+
+                stm = connection.prepareStatement("SELECT * FROM book INNER JOIN issue i on book.isbn = i.isbn WHERE i.isbn=?");
+                stm.setString(1, isbn);
+                rst = stm.executeQuery();
+                if (rst.next()){
+                    resp.sendError(HttpServletResponse.SC_GONE, "Book has been issued already");
+                    return;
+                }
+
                 stm = connection.prepareStatement("DELETE FROM book WHERE isbn=?");
                 stm.setString(1, isbn);
                 if (stm.executeUpdate() != 1) {
