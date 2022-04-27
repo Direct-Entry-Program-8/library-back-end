@@ -1,5 +1,7 @@
 package lk.ijse.dep8.library.dto;
 
+import jakarta.json.bind.annotation.JsonbDateFormat;
+
 import java.io.Serializable;
 import java.sql.Date;
 
@@ -7,6 +9,7 @@ public class IssueDTO implements Serializable {
     private int id;
     private String nic;
     private String isbn;
+    @JsonbDateFormat("yyyy-MM-dd")
     private Date date;
 
     public IssueDTO() {
