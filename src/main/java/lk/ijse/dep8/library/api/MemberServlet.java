@@ -102,6 +102,13 @@ public class MemberServlet extends HttpServlet {
             ResultSet rst = stm.executeQuery();
 
             if (rst.next()) {
+                stm = connection.prepareStatement("SELECT * FROM member INNER JOIN issue i on member.nic = i.nic WHERE i.nic = ?");
+                stm.setString(1, nic);
+                if (stm.executeQuery().next()){
+                    resp.sendError(HttpServletResponse.SC_CONFLICT, "Unable to delete the member due to open issue");
+                    return;
+                }
+
                 stm = connection.prepareStatement("DELETE FROM member WHERE nic=?");
                 stm.setString(1, nic);
                 if (stm.executeUpdate() != 1) {
