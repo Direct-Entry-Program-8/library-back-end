@@ -3,6 +3,7 @@ package lk.ijse.dep8.library.api;
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
 import jakarta.json.bind.JsonbException;
+import lk.ijse.dep8.library.dto.BookDTO;
 import lk.ijse.dep8.library.dto.IssueDTO;
 import lk.ijse.dep8.library.exception.ValidationException;
 
@@ -14,12 +15,70 @@ import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @WebServlet(name = "IssueServlet", value = {"/issues", "/issues/"})
 public class IssueServlet extends HttpServlet {
 
     @Resource(name = "java:comp/env/jdbc/pool4library")
     private volatile DataSource pool;
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String query = req.getParameter("q");
+        query = "%" + ((query == null) ? "" : query) + "%";
+
+        try (Connection connection = pool.getConnection()) {
+
+            boolean pagination = req.getParameter("page") != null &&
+                    req.getParameter("size") != null;
+            String sql = "SELECT * FROM issue WHERE isbn LIKE ? OR nic LIKE ? OR date LIKE ? " + ((pagination) ? "LIMIT ? OFFSET ?" : "");
+
+            PreparedStatement stm = connection.prepareStatement(sql);
+            PreparedStatement stmCount = connection.prepareStatement("SELECT count(*) FROM issue WHERE isbn LIKE ? OR nic LIKE ? OR date LIKE ?");
+
+            stm.setString(1, query);
+            stm.setString(2, query);
+            stm.setString(3, query);
+            stmCount.setString(1, query);
+            stmCount.setString(2, query);
+            stmCount.setString(3, query);
+
+            if (pagination) {
+                int page = Integer.parseInt(req.getParameter("page"));
+                int size = Integer.parseInt(req.getParameter("size"));
+                stm.setInt(4, size);
+                stm.setInt(5, (page - 1) * size);
+            }
+            ResultSet rst = stm.executeQuery();
+
+            List<IssueDTO> issues = new ArrayList<>();
+
+            while (rst.next()) {
+                issues.add((new IssueDTO(
+                        rst.getInt("id"),
+                        rst.getString("nic"),
+                        rst.getString("isbn"),
+                        rst.getDate("date")
+                )));
+            }
+
+            ResultSet rst2 = stmCount.executeQuery();
+            if (rst2.next()) {
+                resp.setHeader("X-Count", rst2.getString(1));
+            }
+
+            resp.setContentType("application/json");
+            Jsonb jsonb = JsonbBuilder.create();
+            jsonb.toJson(issues, resp.getWriter());
+
+        } catch (SQLException t) {
+            t.printStackTrace();
+            resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+
+    }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
