@@ -15,10 +15,10 @@ public class CorsFilter extends HttpFilter {
         String origin = req.getHeader("Origin");
         if (origin != null && origin.toLowerCase().contains(getServletContext().getInitParameter("origin"))) {
             res.setHeader("Access-Control-Allow-Origin", origin);
+            res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+            res.setHeader("Access-Control-Expose-Headers", "Content-Type, X-Count");
             if (req.getMethod().equals("OPTIONS")) {
                 res.setHeader("Access-Control-Allow-Methods", "OPTIONS, GET, PUT, POST, DELETE, HEAD");
-                res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-                res.setHeader("Access-Control-Expose-Headers", "Content-Type");
             }
         }
         chain.doFilter(req, res);

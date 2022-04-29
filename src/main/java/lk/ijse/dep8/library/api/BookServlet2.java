@@ -200,7 +200,7 @@ public class BookServlet2 extends HttpServlet {
             String sql = "SELECT b.*, i.id FROM book b LEFT OUTER JOIN issue i on b.isbn = i.isbn WHERE b.isbn LIKE ? OR b.name LIKE ? OR b.author LIKE ? " + ((pagination) ? "LIMIT ? OFFSET ?" : "");
 
             PreparedStatement stm = connection.prepareStatement(sql);
-            PreparedStatement stmCount = connection.prepareStatement("SELECT * FROM book WHERE isbn LIKE ? OR name LIKE ? OR author LIKE ?");
+            PreparedStatement stmCount = connection.prepareStatement("SELECT count(*) FROM book WHERE isbn LIKE ? OR name LIKE ? OR author LIKE ?");
 
             stm.setString(1, query);
             stm.setString(2, query);
